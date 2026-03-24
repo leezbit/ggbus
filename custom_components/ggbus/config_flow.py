@@ -13,7 +13,7 @@ from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import SelectSelector, SelectSelectorConfig, SelectSelectorMode
 
-from .api import GGBusApi, GGBusApiError, GGBusAuthError, GGBusStationNotFoundError
+from .api import GGBusApi, GGBusApiError, GGBusAuthError
 from .const import (
     CONF_API_KEY,
     CONF_SELECTED_ROUTES,
@@ -22,6 +22,7 @@ from .const import (
     CONF_STATION_NAME,
     DOMAIN,
 )
+
 
 
 class GGBusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -50,8 +51,6 @@ class GGBusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 arrivals = await api.get_station_arrivals(station.station_id)
             except GGBusAuthError:
                 errors["base"] = "invalid_auth"
-            except GGBusStationNotFoundError:
-                errors["base"] = "station_not_found"
             except GGBusApiError:
                 errors["base"] = "cannot_connect"
             else:
@@ -63,12 +62,9 @@ class GGBusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         arrivals.items(), key=lambda item: item[1].route_name
                     )
                 }
-                if not self._route_options:
-                    errors["base"] = "no_routes_found"
-                else:
-                    await self.async_set_unique_id(self._station_id)
-                    self._abort_if_unique_id_configured()
-                    return await self.async_step_routes()
+                await self.async_set_unique_id(self._station_id)
+                self._abort_if_unique_id_configured()
+                return await self.async_step_routes()
 
         default_api = self._default_api_key()
         schema = vol.Schema(
@@ -162,9 +158,6 @@ class GGBusOptionsFlow(config_entries.OptionsFlow):
                 arrivals.items(), key=lambda item: item[1].route_name
             )
         }
-
-        if not route_options and not errors:
-            errors["base"] = "no_routes_found"
 
         current_selected = self.config_entry.options.get(CONF_SELECTED_ROUTES, [])
 

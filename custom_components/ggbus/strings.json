@@ -20,9 +20,7 @@
     "error": {
       "cannot_connect": "API에 연결할 수 없습니다.",
       "invalid_auth": "API 키를 확인하세요.",
-      "no_route_selected": "최소 1개 버스를 선택해야 합니다.",
-      "station_not_found": "정류장 번호를 찾을 수 없습니다.",
-      "no_routes_found": "해당 정류장의 노선 정보를 찾을 수 없습니다."
+      "no_route_selected": "최소 1개 버스를 선택해야 합니다."
     },
     "abort": {
       "already_configured": "이미 등록된 정류장입니다."
@@ -41,8 +39,7 @@
     "error": {
       "cannot_connect": "API에 연결할 수 없습니다.",
       "invalid_auth": "API 키를 확인하세요.",
-      "no_route_selected": "최소 1개 버스를 선택해야 합니다.",
-      "no_routes_found": "해당 정류장의 노선 정보를 찾을 수 없습니다."
+      "no_route_selected": "최소 1개 버스를 선택해야 합니다."
     }
   }
 }

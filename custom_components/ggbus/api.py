@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import json
 import logging
 from typing import Any
-from urllib.parse import unquote_plus
+from urllib.parse import quote_plus
 import xml.etree.ElementTree as ET
 
 from aiohttp import ClientError, ClientSession
@@ -29,10 +28,6 @@ class GGBusApiError(Exception):
 
 class GGBusAuthError(GGBusApiError):
     """Authentication/authorization error."""
-
-
-class GGBusStationNotFoundError(GGBusApiError):
-    """Raised when a station code cannot be resolved."""
 
 
 @dataclass(slots=True)
@@ -66,7 +61,7 @@ class GGBusApi:
 
     def __init__(self, session: ClientSession, api_key: str) -> None:
         self._session = session
-        self._api_key = api_key.strip()
+        self._api_key = api_key
 
     async def resolve_station_by_code(self, station_code: str) -> Station:
         """Resolve stop 5-digit code to stationId and name."""
@@ -74,41 +69,29 @@ class GGBusApi:
         if not query:
             raise GGBusApiError("Station code is empty")
 
-        params_candidates = [
-            {"serviceKey": key, "keyword": query}
-            for key in self._service_key_candidates()
-        ]
-
-        payload = await self._request_with_fallback(
-            [f"{base}/getBusStationList" for base in STATION_BASES],
-            params_candidates,
+        endpoints = (
+            f"{base}/getBusStationList?serviceKey={quote_plus(self._api_key)}&keyword={quote_plus(query)}"
+            for base in STATION_BASES
         )
-
+        payload = await self._request_with_fallback(endpoints)
         items = _extract_items(payload)
         for item in items:
             station_no = str(item.get("stationNo") or item.get("stationno") or "").strip()
-            if station_no != query:
-                continue
+            if station_no == query:
+                station_id = str(item.get("stationId") or item.get("stationid") or "").strip()
+                station_name = str(item.get("stationName") or item.get("stationname") or query).strip()
+                if station_id:
+                    return Station(station_id=station_id, station_name=station_name, station_no=station_no)
 
-            station_id = str(item.get("stationId") or item.get("stationid") or "").strip()
-            station_name = str(item.get("stationName") or item.get("stationname") or query).strip()
-            if station_id:
-                return Station(station_id=station_id, station_name=station_name, station_no=station_no)
-
-        raise GGBusStationNotFoundError(f"Station code {station_code} was not found")
+        raise GGBusApiError(f"Station code {station_code} was not found")
 
     async def get_station_arrivals(self, station_id: str) -> dict[str, Arrival]:
         """Fetch all arrivals for a station in a single API call."""
-        params_candidates = [
-            {"serviceKey": key, "stationId": station_id}
-            for key in self._service_key_candidates()
-        ]
-
-        payload = await self._request_with_fallback(
-            [f"{base}/getBusArrivalListv2" for base in ARRIVAL_BASES],
-            params_candidates,
+        endpoints = (
+            f"{base}/getBusArrivalListv2?serviceKey={quote_plus(self._api_key)}&stationId={quote_plus(station_id)}"
+            for base in ARRIVAL_BASES
         )
-
+        payload = await self._request_with_fallback(endpoints)
         items = _extract_items(payload)
         arrivals: dict[str, Arrival] = {}
         for item in items:
@@ -130,38 +113,25 @@ class GGBusApi:
                 plate_no_1=_to_optional_str(item.get("plateNo1")),
                 plate_no_2=_to_optional_str(item.get("plateNo2")),
             )
-
         return arrivals
 
-    def _service_key_candidates(self) -> list[str]:
-        """Try raw and decoded values to avoid double-encoding issues."""
-        decoded = unquote_plus(self._api_key)
-        candidates = [self._api_key]
-        if decoded != self._api_key:
-            candidates.append(decoded)
-        return candidates
-
-    async def _request_with_fallback(
-        self,
-        endpoints: list[str],
-        params_candidates: list[dict[str, str]],
-    ) -> dict[str, Any]:
+    async def _request_with_fallback(self, endpoints: Any) -> dict[str, Any]:
         last_error: Exception | None = None
-        for endpoint in endpoints:
-            for params in params_candidates:
-                try:
-                    return await self._request(endpoint, params)
-                except GGBusAuthError:
-                    raise
-                except GGBusApiError as err:
-                    last_error = err
-                    _LOGGER.debug("GGBus endpoint failed %s params=%s err=%s", endpoint, params, err)
+        for url in endpoints:
+            try:
+                payload = await self._request(url)
+                return payload
+            except GGBusAuthError:
+                raise
+            except GGBusApiError as err:
+                last_error = err
+                _LOGGER.debug("GGBus endpoint failed %s: %s", url, err)
 
         raise GGBusApiError(str(last_error) if last_error else "Unknown API failure")
 
-    async def _request(self, endpoint: str, params: dict[str, str]) -> dict[str, Any]:
+    async def _request(self, url: str) -> dict[str, Any]:
         try:
-            response = await self._session.get(endpoint, params=params, timeout=15)
+            response = await self._session.get(url, timeout=15)
             text = await response.text()
         except ClientError as err:
             raise GGBusApiError(f"Connection error: {err}") from err
@@ -174,11 +144,9 @@ class GGBusApi:
         payload = _parse_payload(text)
         result_code = _extract_result_code(payload)
         if result_code and result_code not in {"0", "00", "INFO-000", "SUCCESS"}:
-            normalized = result_code.upper()
-            if "SERVICE_KEY" in normalized or "AUTH" in normalized:
+            if "SERVICE_KEY" in result_code:
                 raise GGBusAuthError(result_code)
             raise GGBusApiError(result_code)
-
         return payload
 
 
@@ -188,6 +156,8 @@ def _parse_payload(text: str) -> dict[str, Any]:
         raise GGBusApiError("Empty response")
 
     if body.startswith("{"):
+        import json
+
         return json.loads(body)
 
     try:
@@ -195,10 +165,7 @@ def _parse_payload(text: str) -> dict[str, Any]:
     except ET.ParseError as err:
         raise GGBusApiError("Unsupported payload") from err
 
-    parsed = _xml_to_dict(root)
-    if isinstance(parsed, str):
-        raise GGBusApiError("Unexpected scalar payload")
-    return parsed
+    return _xml_to_dict(root)
 
 
 def _xml_to_dict(element: ET.Element) -> dict[str, Any] | str:
@@ -220,21 +187,19 @@ def _xml_to_dict(element: ET.Element) -> dict[str, Any] | str:
 
 
 def _extract_items(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    response_obj = payload.get("response") or payload.get("ServiceResult") or payload
-    msg_body = response_obj.get("msgBody") if isinstance(response_obj, dict) else {}
-
-    if not isinstance(msg_body, dict):
-        return []
-
-    for key in ("busArrivalList", "busStationList", "itemList", "item"):
-        value = msg_body.get(key)
+    candidates = [
+        (((payload.get("response") or {}).get("msgBody") or {}).get("busArrivalList")),
+        (((payload.get("response") or {}).get("msgBody") or {}).get("busStationList")),
+        (((payload.get("ServiceResult") or {}).get("msgBody") or {}).get("busArrivalList")),
+        (((payload.get("ServiceResult") or {}).get("msgBody") or {}).get("busStationList")),
+    ]
+    for value in candidates:
         if value is None:
             continue
         if isinstance(value, list):
             return [item for item in value if isinstance(item, dict)]
         if isinstance(value, dict):
             return [value]
-
     return []
 
 
@@ -242,7 +207,6 @@ def _extract_result_code(payload: dict[str, Any]) -> str | None:
     paths = [
         ((payload.get("response") or {}).get("msgHeader") or {}).get("resultCode"),
         ((payload.get("ServiceResult") or {}).get("msgHeader") or {}).get("resultCode"),
-        ((payload.get("msgHeader") or {}).get("resultCode")),
         (payload.get("cmmMsgHeader") or {}).get("returnReasonCode"),
     ]
     for value in paths:
