@@ -1,4 +1,9 @@
-# GGBus (경기도 버스 도착정보) Home Assistant 통합구성요소 🚍
+# GGBus (경기도 버스 도착정보) Home Assistant 통합구성요소
+
+[![HACS Integration](https://img.shields.io/badge/HACS-Integration-blue.svg)](https://hacs.xyz)
+[![license](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
+
+> Portions of this integration were generated with the help of ChatGPT/Codex (OpenAI).
 
 경기도 버스 도착정보 Open API (data.go.kr)를 기반으로,
 **정류장 단위 버스 도착 정보를 Home Assistant에서 확인할 수 있는 HACS 커스텀 통합입니다.**
