@@ -67,7 +67,6 @@ class GGBusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     _station_id: str
     _station_name: str
     _route_options: dict[str, str]
-    _target_entry: config_entries.ConfigEntry | None = None
 
     @staticmethod
     def async_get_options_flow(
@@ -116,10 +115,6 @@ class GGBusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 if not self._route_options:
                     errors["base"] = "no_routes_found"
                 else:
-                    existing_entry = self._find_entry_by_station_id(self._station_id)
-                    if existing_entry is not None:
-                        return self.async_abort(reason="already_configured")
-
                     await self.async_set_unique_id(self._station_id)
                     self._abort_if_unique_id_configured()
                     return await self.async_step_routes()
@@ -193,87 +188,11 @@ class GGBusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             description_placeholders={"station_name": self._station_name},
         )
 
-
-    async def async_step_update_existing(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Update routes when station already exists."""
-        errors: dict[str, str] = {}
-        if self._target_entry is None:
-            return self.async_abort(reason="cannot_connect")
-
-        current_selected_raw = self._target_entry.options.get(CONF_SELECTED_ROUTES, [])
-        current_selected = current_selected_raw if isinstance(current_selected_raw, list) else []
-        current_scan_interval = int(
-            self._target_entry.options.get(CONF_SCAN_INTERVAL_SECONDS, DEFAULT_SCAN_INTERVAL_SECONDS)
-        )
-        current_reduced_interval = int(
-            self._target_entry.options.get(CONF_REDUCED_INTERVAL_MINUTES, DEFAULT_REDUCED_INTERVAL_MINUTES)
-        )
-
-        if user_input is not None:
-            selected_routes: list[str] = user_input[CONF_SELECTED_ROUTES]
-            scan_interval_seconds = int(user_input[CONF_SCAN_INTERVAL_SECONDS])
-            reduced_interval_minutes = int(user_input[CONF_REDUCED_INTERVAL_MINUTES])
-            if not selected_routes:
-                errors["base"] = "no_route_selected"
-            else:
-                self.hass.config_entries.async_update_entry(
-                    self._target_entry,
-                    options={
-                        CONF_SELECTED_ROUTES: selected_routes,
-                        CONF_SCAN_INTERVAL_SECONDS: scan_interval_seconds,
-                        CONF_REDUCED_INTERVAL_MINUTES: reduced_interval_minutes,
-                    },
-                )
-                await self.hass.config_entries.async_reload(self._target_entry.entry_id)
-                return self.async_abort(reason="reconfigured")
-
-        selector = SelectSelector(
-            SelectSelectorConfig(
-                options=[
-                    {"label": _route_label(name), "value": route_id}
-                    for route_id, name in self._route_options.items()
-                ],
-                multiple=True,
-                mode=SelectSelectorMode.LIST,
-            )
-        )
-        schema = vol.Schema(
-            {
-                vol.Required(
-                    CONF_SELECTED_ROUTES,
-                    default=[rid for rid in current_selected if rid in self._route_options],
-                ): selector,
-                vol.Required(
-                    CONF_SCAN_INTERVAL_SECONDS,
-                    default=current_scan_interval,
-                ): SCAN_INTERVAL_SELECTOR,
-                vol.Required(
-                    CONF_REDUCED_INTERVAL_MINUTES,
-                    default=current_reduced_interval,
-                ): REDUCED_INTERVAL_SELECTOR,
-            }
-        )
-
-        return self.async_show_form(
-            step_id="update_existing",
-            data_schema=schema,
-            errors=errors,
-            description_placeholders={"station_name": self._station_name},
-        )
-
     def _default_api_key(self) -> str:
         entries = self._async_current_entries()
         if not entries:
             return ""
         return entries[0].data.get(CONF_API_KEY, "")
-
-    def _find_entry_by_station_id(self, station_id: str) -> config_entries.ConfigEntry | None:
-        for entry in self._async_current_entries():
-            if entry.data.get(CONF_STATION_ID) == station_id:
-                return entry
-        return None
 
 
 def _route_label(route_name: str) -> str:
