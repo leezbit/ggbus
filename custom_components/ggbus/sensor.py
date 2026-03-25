@@ -9,6 +9,7 @@ from typing import Any
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -92,6 +93,17 @@ async def async_setup_entry(
     """Set up bus arrival sensors based on a config entry."""
     coordinator: GGBusCoordinator = entry.runtime_data
     selected_route_ids = entry.options.get(CONF_SELECTED_ROUTES, [])
+
+    registry = er.async_get(hass)
+    valid_unique_ids = {f"{entry.entry_id}_api_status"}
+    for route_id in selected_route_ids:
+        for metric in METRICS:
+            valid_unique_ids.add(f"{entry.entry_id}_{route_id}_{metric.key}")
+
+    for reg_entry in er.async_entries_for_config_entry(registry, entry.entry_id):
+        if reg_entry.unique_id and reg_entry.unique_id.startswith(f"{entry.entry_id}_"):
+            if reg_entry.unique_id not in valid_unique_ids:
+                registry.async_remove(reg_entry.entity_id)
 
     entities: list[SensorEntity] = [GGBusApiStatusSensor(coordinator, entry)]
     entities.extend(
