@@ -345,7 +345,7 @@ def run_status_text(flag: str | None) -> str:
     normalized = raw.upper()
 
     if normalized in RUNNING_STATUS_VALUES or raw in RUNNING_STATUS_VALUES:
-        return "운행"
+        return "운행 중"
     if normalized in NOT_RUNNING_STATUS_VALUES or raw in NOT_RUNNING_STATUS_VALUES:
         return "미운행"
     return raw
