@@ -74,9 +74,14 @@ async def async_remove_config_entry_device(
 
     current_selected = entry.options.get(CONF_SELECTED_ROUTES, [])
     if target_route_id not in current_selected:
-        return False
+        # Stale shell device with no linked selected route: allow HA to remove it.
+        return True
 
     updated = [rid for rid in current_selected if rid != target_route_id]
+    if not updated:
+        await hass.config_entries.async_remove(entry.entry_id)
+        return True
+
     hass.config_entries.async_update_entry(
         entry,
         options={CONF_SELECTED_ROUTES: updated},

@@ -9,6 +9,7 @@ from typing import Any
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -104,6 +105,20 @@ async def async_setup_entry(
         if reg_entry.unique_id and reg_entry.unique_id.startswith(f"{entry.entry_id}_"):
             if reg_entry.unique_id not in valid_unique_ids:
                 registry.async_remove(reg_entry.entity_id)
+
+    device_registry = dr.async_get(hass)
+    station_id = entry.data[CONF_STATION_ID]
+    selected_set = set(selected_route_ids)
+    for device in dr.async_entries_for_config_entry(device_registry, entry.entry_id):
+        for domain, identifier in device.identifiers:
+            if domain != DOMAIN:
+                continue
+            prefix = f"{station_id}_"
+            if identifier.startswith(prefix):
+                route_id = identifier[len(prefix) :]
+                if route_id not in selected_set:
+                    device_registry.async_remove_device(device.id)
+                break
 
     entities: list[SensorEntity] = [GGBusApiStatusSensor(coordinator, entry)]
     entities.extend(
