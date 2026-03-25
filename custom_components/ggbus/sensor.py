@@ -52,6 +52,12 @@ METRICS: tuple[GGBusMetricDescription, ...] = (
         value_fn=lambda arrival: arrival.location_no_1,
     ),
     GGBusMetricDescription(
+        key="low_plate_1",
+        name_suffix="1번째 저상버스",
+        icon="mdi:wheelchair-accessibility",
+        value_fn=lambda arrival: _low_floor_text(arrival.low_plate_1, arrival.predict_time_1),
+    ),
+    GGBusMetricDescription(
         key="arrival_2",
         name_suffix="2번째 도착예정",
         icon="mdi:clock-fast",
@@ -64,6 +70,12 @@ METRICS: tuple[GGBusMetricDescription, ...] = (
         icon="mdi:map-marker-distance",
         unit="번째 전",
         value_fn=lambda arrival: arrival.location_no_2,
+    ),
+    GGBusMetricDescription(
+        key="low_plate_2",
+        name_suffix="2번째 저상버스",
+        icon="mdi:wheelchair-accessibility",
+        value_fn=lambda arrival: _low_floor_text(arrival.low_plate_2, arrival.predict_time_2),
     ),
     GGBusMetricDescription(
         key="flag",
@@ -236,3 +248,23 @@ def _route_label(route_name: str) -> str:
         return cleaned
     return f"{cleaned}번"
 
+
+def _low_floor_text(value: bool | None, predict_minutes: int | None) -> str:
+    if predict_minutes is None:
+        return "대기 중"
+    if value is None:
+        return "정보없음"
+    return "저상" if value else "일반"
+
+
+def _api_status_text(status: str | None) -> str:
+    mapping = {
+        "ok": "정상",
+        "auth_error": "인증오류",
+        "quota_exceeded": "할당초과",
+        "api_error": "API오류",
+        "unknown_error": "오류",
+    }
+    if not status:
+        return "알 수 없음"
+    return mapping.get(status, status)
