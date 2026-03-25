@@ -157,8 +157,8 @@ class GGBusApi:
                 location_no_2=_to_int(item.get("locationNo2")),
                 predict_time_2=_to_int(item.get("predictTime2")),
                 flag=_to_optional_str(item.get("flag")),
-                low_plate_1=_to_low_floor(item.get("lowPlate1") or item.get("lowplate1") or item.get("low_plate_1")),
-                low_plate_2=_to_low_floor(item.get("lowPlate2") or item.get("lowplate2") or item.get("low_plate_2")),
+                low_plate_1=_to_low_floor(_first_present(item, "lowPlate1", "lowplate1", "low_plate_1")),
+                low_plate_2=_to_low_floor(_first_present(item, "lowPlate2", "lowplate2", "low_plate_2")),
                 plate_no_1=_to_optional_str(item.get("plateNo1")),
                 plate_no_2=_to_optional_str(item.get("plateNo2")),
             )
@@ -327,6 +327,13 @@ def _to_optional_str(value: Any) -> str | None:
 
 def _digits_only(value: str) -> str:
     return "".join(ch for ch in value if ch.isdigit())
+
+
+def _first_present(payload: dict[str, Any], *keys: str) -> Any:
+    for key in keys:
+        if key in payload and payload[key] is not None:
+            return payload[key]
+    return None
 
 
 def run_status_text(flag: str | None) -> str:
