@@ -1,5 +1,5 @@
 {
-  "name": "GGBus Home Assistant Integration",
+  "name": "경기도 버스 도착정보",
   "content_in_root": false,
   "domains": [
     "ggbus"
