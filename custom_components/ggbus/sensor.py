@@ -216,10 +216,12 @@ class GGBusRouteMetricSensor(CoordinatorEntity[GGBusCoordinator], SensorEntity):
             return None
 
         value = self._metric.value_fn(arrival)
-        if self._metric.key in {"arrival_1", "arrival_2", "location_1", "location_2"} and value is None:
+        if self._metric.key in {"arrival_1", "arrival_2"} and value is None:
             if run_status_text(arrival.flag) == "미운행":
                 return "운행종료"
             return "대기 중"
+        if self._metric.key in {"location_1", "location_2"} and value is None:
+            return "정보없음"
         return value
 
     @property
