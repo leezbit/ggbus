@@ -55,7 +55,7 @@ METRICS: tuple[GGBusMetricDescription, ...] = (
         key="low_plate_1",
         name_suffix="1번째 저상버스",
         icon="mdi:wheelchair-accessibility",
-        value_fn=lambda arrival: _low_floor_text(arrival.low_plate_1, arrival.predict_time_1),
+        value_fn=lambda arrival: _low_floor_text(arrival.low_plate_1),
     ),
     GGBusMetricDescription(
         key="arrival_2",
@@ -75,7 +75,7 @@ METRICS: tuple[GGBusMetricDescription, ...] = (
         key="low_plate_2",
         name_suffix="2번째 저상버스",
         icon="mdi:wheelchair-accessibility",
-        value_fn=lambda arrival: _low_floor_text(arrival.low_plate_2, arrival.predict_time_2),
+        value_fn=lambda arrival: _low_floor_text(arrival.low_plate_2),
     ),
     GGBusMetricDescription(
         key="flag",
@@ -249,9 +249,7 @@ def _route_label(route_name: str) -> str:
     return f"{cleaned}번"
 
 
-def _low_floor_text(value: bool | None, predict_minutes: int | None) -> str:
-    if predict_minutes is None:
-        return "대기 중"
+def _low_floor_text(value: bool | None) -> str:
     if value is None:
         return "정보없음"
     return "저상" if value else "일반"
