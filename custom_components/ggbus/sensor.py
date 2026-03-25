@@ -250,8 +250,10 @@ def _route_label(route_name: str) -> str:
 
 
 def _low_floor_text(value: bool | None) -> str:
+    # 일부 노선(특히 광역/직행 계열)에서는 lowPlate 값이 누락되는 경우가 있어
+    # 사용자 혼선을 줄이기 위해 누락값도 비저상(일반)으로 표기한다.
     if value is None:
-        return "정보없음"
+        return "일반"
     return "저상" if value else "일반"
 
 
