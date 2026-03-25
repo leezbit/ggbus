@@ -38,6 +38,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: GGBusConfigEntry) -> boo
     )
 
     entry.runtime_data = coordinator
+    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
@@ -45,6 +46,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: GGBusConfigEntry) -> boo
 async def async_unload_entry(hass: HomeAssistant, entry: GGBusConfigEntry) -> bool:
     """Unload a config entry."""
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+
+async def _async_update_listener(hass: HomeAssistant, entry: GGBusConfigEntry) -> None:
+    """Reload integration when options are updated."""
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_remove_config_entry_device(

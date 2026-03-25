@@ -11,6 +11,9 @@ from homeassistant import config_entries
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
@@ -34,6 +37,24 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+SCAN_INTERVAL_SELECTOR = NumberSelector(
+    NumberSelectorConfig(
+        min=30,
+        max=600,
+        step=10,
+        mode=NumberSelectorMode.BOX,
+    )
+)
+
+REDUCED_INTERVAL_SELECTOR = NumberSelector(
+    NumberSelectorConfig(
+        min=5,
+        max=120,
+        step=1,
+        mode=NumberSelectorMode.BOX,
+    )
+)
 
 
 class GGBusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -158,11 +179,11 @@ class GGBusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(
                     CONF_SCAN_INTERVAL_SECONDS,
                     default=DEFAULT_SCAN_INTERVAL_SECONDS,
-                ): vol.All(vol.Coerce(int), vol.Range(min=30, max=600)),
+                ): SCAN_INTERVAL_SELECTOR,
                 vol.Required(
                     CONF_REDUCED_INTERVAL_MINUTES,
                     default=DEFAULT_REDUCED_INTERVAL_MINUTES,
-                ): vol.All(vol.Coerce(int), vol.Range(min=5, max=120)),
+                ): REDUCED_INTERVAL_SELECTOR,
             }
         )
 
@@ -228,11 +249,11 @@ class GGBusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(
                     CONF_SCAN_INTERVAL_SECONDS,
                     default=current_scan_interval,
-                ): vol.All(vol.Coerce(int), vol.Range(min=30, max=600)),
+                ): SCAN_INTERVAL_SELECTOR,
                 vol.Required(
                     CONF_REDUCED_INTERVAL_MINUTES,
                     default=current_reduced_interval,
-                ): vol.All(vol.Coerce(int), vol.Range(min=5, max=120)),
+                ): REDUCED_INTERVAL_SELECTOR,
             }
         )
 
@@ -337,7 +358,7 @@ class GGBusOptionsFlow(config_entries.OptionsFlow):
                     default=int(
                         self._entry.options.get(CONF_SCAN_INTERVAL_SECONDS, DEFAULT_SCAN_INTERVAL_SECONDS)
                     ),
-                ): vol.All(vol.Coerce(int), vol.Range(min=30, max=600)),
+                ): SCAN_INTERVAL_SELECTOR,
                 vol.Required(
                     CONF_REDUCED_INTERVAL_MINUTES,
                     default=int(
@@ -345,7 +366,7 @@ class GGBusOptionsFlow(config_entries.OptionsFlow):
                             CONF_REDUCED_INTERVAL_MINUTES, DEFAULT_REDUCED_INTERVAL_MINUTES
                         )
                     ),
-                ): vol.All(vol.Coerce(int), vol.Range(min=5, max=120)),
+                ): REDUCED_INTERVAL_SELECTOR,
             }
         )
 
