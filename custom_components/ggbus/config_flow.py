@@ -118,8 +118,7 @@ class GGBusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 else:
                     existing_entry = self._find_entry_by_station_id(self._station_id)
                     if existing_entry is not None:
-                        self._target_entry = existing_entry
-                        return await self.async_step_update_existing()
+                        return self.async_abort(reason="already_configured")
 
                     await self.async_set_unique_id(self._station_id)
                     self._abort_if_unique_id_configured()
