@@ -15,7 +15,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .api import Arrival
+from .api import Arrival, run_status_text
 from .const import (
     CONF_SELECTED_ROUTES,
     CONF_STATION_ID,
@@ -52,12 +52,6 @@ METRICS: tuple[GGBusMetricDescription, ...] = (
         value_fn=lambda arrival: arrival.location_no_1,
     ),
     GGBusMetricDescription(
-        key="low_plate_1",
-        name_suffix="1번째 저상버스",
-        icon="mdi:wheelchair-accessibility",
-        value_fn=lambda arrival: _low_floor_text(arrival.low_plate_1, arrival.predict_time_1),
-    ),
-    GGBusMetricDescription(
         key="arrival_2",
         name_suffix="2번째 도착예정",
         icon="mdi:clock-fast",
@@ -72,16 +66,10 @@ METRICS: tuple[GGBusMetricDescription, ...] = (
         value_fn=lambda arrival: arrival.location_no_2,
     ),
     GGBusMetricDescription(
-        key="low_plate_2",
-        name_suffix="2번째 저상버스",
-        icon="mdi:wheelchair-accessibility",
-        value_fn=lambda arrival: _low_floor_text(arrival.low_plate_2, arrival.predict_time_2),
-    ),
-    GGBusMetricDescription(
         key="flag",
         name_suffix="운행상태",
         icon="mdi:bus-alert",
-        value_fn=lambda arrival: _run_status_text(arrival.flag),
+        value_fn=lambda arrival: run_status_text(arrival.flag),
     ),
 )
 
@@ -217,6 +205,8 @@ class GGBusRouteMetricSensor(CoordinatorEntity[GGBusCoordinator], SensorEntity):
 
         value = self._metric.value_fn(arrival)
         if self._metric.key in {"arrival_1", "arrival_2", "location_1", "location_2"} and value is None:
+            if run_status_text(arrival.flag) == "미운행":
+                return "운행종료"
             return "대기 중"
         return value
 
@@ -246,27 +236,3 @@ def _route_label(route_name: str) -> str:
         return cleaned
     return f"{cleaned}번"
 
-
-def _low_floor_text(value: bool | None, predict_minutes: int | None) -> str:
-    if predict_minutes is None:
-        return "대기 중"
-    if value is None:
-        return "정보없음"
-    return "저상" if value else "일반"
-
-
-def _run_status_text(flag: str | None) -> str:
-    if flag is None or str(flag).strip() == "":
-        return "정보없음"
-
-    raw = str(flag).strip()
-    normalized = raw.upper()
-
-    running_values = {"RUN", "PASS", "1", "Y", "ON", "정상", "운행"}
-    not_running_values = {"STOP", "0", "N", "OFF", "미운행", "종료"}
-
-    if normalized in running_values or raw in running_values:
-        return "운행"
-    if normalized in not_running_values or raw in not_running_values:
-        return "미운행"
-    return raw

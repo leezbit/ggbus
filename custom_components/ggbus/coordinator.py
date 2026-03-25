@@ -10,7 +10,14 @@ from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryError
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .api import Arrival, GGBusApi, GGBusApiError, GGBusAuthError, GGBusQuotaError
+from .api import (
+    Arrival,
+    GGBusApi,
+    GGBusApiError,
+    GGBusAuthError,
+    GGBusQuotaError,
+    run_status_text,
+)
 from .const import (
     CONF_API_KEY,
     CONF_STATION_ID,
@@ -73,21 +80,11 @@ class GGBusCoordinator(DataUpdateCoordinator[dict[str, Arrival]]):
             raise ConfigEntryError(str(err)) from err
 
     def _adjust_update_interval(self, arrivals: dict[str, Arrival]) -> None:
-        if arrivals and all(_run_status_text(arrival.flag) == "미운행" for arrival in arrivals.values()):
+        if arrivals and all(run_status_text(arrival.flag) == "미운행" for arrival in arrivals.values()):
             self.update_interval = NIGHT_REDUCED_INTERVAL
             return
 
         self.update_interval = timedelta(seconds=DEFAULT_SCAN_INTERVAL_SECONDS)
-
-
-def _run_status_text(flag: str | None) -> str:
-    if not flag:
-        return "미운행"
-    normalized = str(flag).strip().upper()
-    if normalized in {"RUN", "1", "Y", "ON", "정상"}:
-        return "운행"
-    return "미운행"
-
 
 def _is_quota_error(message: str) -> bool:
     normalized = message.upper()

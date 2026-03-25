@@ -23,6 +23,9 @@ ARRIVAL_ENDPOINTS = (
     "https://apis.data.go.kr/6410000/busarrivalservice/v2/getBusArrivalListv2",
 )
 
+RUNNING_STATUS_VALUES = {"RUN", "PASS", "1", "Y", "ON", "정상", "운행"}
+NOT_RUNNING_STATUS_VALUES = {"STOP", "0", "N", "OFF", "미운행", "종료"}
+
 
 class GGBusApiError(Exception):
     """Base API error."""
@@ -309,3 +312,18 @@ def _to_optional_str(value: Any) -> str | None:
 
 def _digits_only(value: str) -> str:
     return "".join(ch for ch in value if ch.isdigit())
+
+
+def run_status_text(flag: str | None) -> str:
+    """Normalize API run-status flag to Korean UI text."""
+    if flag is None or str(flag).strip() == "":
+        return "정보없음"
+
+    raw = str(flag).strip()
+    normalized = raw.upper()
+
+    if normalized in RUNNING_STATUS_VALUES or raw in RUNNING_STATUS_VALUES:
+        return "운행"
+    if normalized in NOT_RUNNING_STATUS_VALUES or raw in NOT_RUNNING_STATUS_VALUES:
+        return "미운행"
+    return raw
