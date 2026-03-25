@@ -22,10 +22,14 @@ from homeassistant.helpers.selector import (
 from .api import GGBusApi, GGBusApiError, GGBusAuthError, GGBusQuotaError, GGBusStationNotFoundError
 from .const import (
     CONF_API_KEY,
+    CONF_REDUCED_INTERVAL_MINUTES,
+    CONF_SCAN_INTERVAL_SECONDS,
     CONF_SELECTED_ROUTES,
     CONF_STATION_CODE,
     CONF_STATION_ID,
     CONF_STATION_NAME,
+    DEFAULT_REDUCED_INTERVAL_MINUTES,
+    DEFAULT_SCAN_INTERVAL_SECONDS,
     DOMAIN,
 )
 
@@ -43,6 +47,12 @@ class GGBusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     _station_name: str
     _route_options: dict[str, str]
     _target_entry: config_entries.ConfigEntry | None = None
+
+    @staticmethod
+    def async_get_options_flow(
+        config_entry: config_entries.ConfigEntry,
+    ) -> config_entries.OptionsFlow:
+        return GGBusOptionsFlow(config_entry)
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -112,6 +122,8 @@ class GGBusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             selected_routes: list[str] = user_input[CONF_SELECTED_ROUTES]
+            scan_interval_seconds = int(user_input[CONF_SCAN_INTERVAL_SECONDS])
+            reduced_interval_minutes = int(user_input[CONF_REDUCED_INTERVAL_MINUTES])
             if not selected_routes:
                 errors["base"] = "no_route_selected"
             else:
@@ -123,7 +135,11 @@ class GGBusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_STATION_ID: self._station_id,
                         CONF_STATION_NAME: self._station_name,
                     },
-                    options={CONF_SELECTED_ROUTES: selected_routes},
+                    options={
+                        CONF_SELECTED_ROUTES: selected_routes,
+                        CONF_SCAN_INTERVAL_SECONDS: scan_interval_seconds,
+                        CONF_REDUCED_INTERVAL_MINUTES: reduced_interval_minutes,
+                    },
                 )
 
         selector = SelectSelector(
@@ -136,7 +152,19 @@ class GGBusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 mode=SelectSelectorMode.LIST,
             )
         )
-        schema = vol.Schema({vol.Required(CONF_SELECTED_ROUTES): selector})
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_SELECTED_ROUTES): selector,
+                vol.Required(
+                    CONF_SCAN_INTERVAL_SECONDS,
+                    default=DEFAULT_SCAN_INTERVAL_SECONDS,
+                ): vol.All(vol.Coerce(int), vol.Range(min=30, max=600)),
+                vol.Required(
+                    CONF_REDUCED_INTERVAL_MINUTES,
+                    default=DEFAULT_REDUCED_INTERVAL_MINUTES,
+                ): vol.All(vol.Coerce(int), vol.Range(min=5, max=120)),
+            }
+        )
 
         return self.async_show_form(
             step_id="routes",
@@ -156,15 +184,27 @@ class GGBusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         current_selected_raw = self._target_entry.options.get(CONF_SELECTED_ROUTES, [])
         current_selected = current_selected_raw if isinstance(current_selected_raw, list) else []
+        current_scan_interval = int(
+            self._target_entry.options.get(CONF_SCAN_INTERVAL_SECONDS, DEFAULT_SCAN_INTERVAL_SECONDS)
+        )
+        current_reduced_interval = int(
+            self._target_entry.options.get(CONF_REDUCED_INTERVAL_MINUTES, DEFAULT_REDUCED_INTERVAL_MINUTES)
+        )
 
         if user_input is not None:
             selected_routes: list[str] = user_input[CONF_SELECTED_ROUTES]
+            scan_interval_seconds = int(user_input[CONF_SCAN_INTERVAL_SECONDS])
+            reduced_interval_minutes = int(user_input[CONF_REDUCED_INTERVAL_MINUTES])
             if not selected_routes:
                 errors["base"] = "no_route_selected"
             else:
                 self.hass.config_entries.async_update_entry(
                     self._target_entry,
-                    options={CONF_SELECTED_ROUTES: selected_routes},
+                    options={
+                        CONF_SELECTED_ROUTES: selected_routes,
+                        CONF_SCAN_INTERVAL_SECONDS: scan_interval_seconds,
+                        CONF_REDUCED_INTERVAL_MINUTES: reduced_interval_minutes,
+                    },
                 )
                 await self.hass.config_entries.async_reload(self._target_entry.entry_id)
                 return self.async_abort(reason="reconfigured")
@@ -184,7 +224,15 @@ class GGBusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(
                     CONF_SELECTED_ROUTES,
                     default=[rid for rid in current_selected if rid in self._route_options],
-                ): selector
+                ): selector,
+                vol.Required(
+                    CONF_SCAN_INTERVAL_SECONDS,
+                    default=current_scan_interval,
+                ): vol.All(vol.Coerce(int), vol.Range(min=30, max=600)),
+                vol.Required(
+                    CONF_REDUCED_INTERVAL_MINUTES,
+                    default=current_reduced_interval,
+                ): vol.All(vol.Coerce(int), vol.Range(min=5, max=120)),
             }
         )
 
@@ -215,3 +263,90 @@ def _route_label(route_name: str) -> str:
     if cleaned.endswith("번"):
         return cleaned
     return f"{cleaned}번"
+
+
+class GGBusOptionsFlow(config_entries.OptionsFlow):
+    """Handle options for an existing GGBus entry."""
+
+    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
+        self._entry = config_entry
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        errors: dict[str, str] = {}
+        api_key = self._entry.data[CONF_API_KEY]
+        station_id = self._entry.data[CONF_STATION_ID]
+
+        api = GGBusApi(async_get_clientsession(self.hass), api_key)
+        try:
+            arrivals = await api.get_station_arrivals(station_id)
+        except GGBusAuthError:
+            errors["base"] = "invalid_auth"
+            arrivals = {}
+        except GGBusQuotaError:
+            errors["base"] = "quota_exceeded"
+            arrivals = {}
+        except GGBusApiError:
+            errors["base"] = "cannot_connect"
+            arrivals = {}
+
+        route_options = {
+            route_id: arrival.route_name
+            for route_id, arrival in sorted(arrivals.items(), key=lambda item: item[1].route_name)
+        }
+        current_selected_raw = self._entry.options.get(CONF_SELECTED_ROUTES, [])
+        current_selected = current_selected_raw if isinstance(current_selected_raw, list) else []
+
+        if user_input is not None:
+            selected_routes: list[str] = user_input[CONF_SELECTED_ROUTES]
+            if not selected_routes:
+                errors["base"] = "no_route_selected"
+            else:
+                return self.async_create_entry(
+                    title="",
+                    data={
+                        CONF_SELECTED_ROUTES: selected_routes,
+                        CONF_SCAN_INTERVAL_SECONDS: int(user_input[CONF_SCAN_INTERVAL_SECONDS]),
+                        CONF_REDUCED_INTERVAL_MINUTES: int(user_input[CONF_REDUCED_INTERVAL_MINUTES]),
+                    },
+                )
+
+        if not route_options and not errors:
+            errors["base"] = "no_routes_found"
+
+        selector = SelectSelector(
+            SelectSelectorConfig(
+                options=[
+                    {"label": _route_label(name), "value": route_id}
+                    for route_id, name in route_options.items()
+                ],
+                multiple=True,
+                mode=SelectSelectorMode.LIST,
+            )
+        )
+
+        schema = vol.Schema(
+            {
+                vol.Required(
+                    CONF_SELECTED_ROUTES,
+                    default=[rid for rid in current_selected if rid in route_options] or current_selected,
+                ): selector,
+                vol.Required(
+                    CONF_SCAN_INTERVAL_SECONDS,
+                    default=int(
+                        self._entry.options.get(CONF_SCAN_INTERVAL_SECONDS, DEFAULT_SCAN_INTERVAL_SECONDS)
+                    ),
+                ): vol.All(vol.Coerce(int), vol.Range(min=30, max=600)),
+                vol.Required(
+                    CONF_REDUCED_INTERVAL_MINUTES,
+                    default=int(
+                        self._entry.options.get(
+                            CONF_REDUCED_INTERVAL_MINUTES, DEFAULT_REDUCED_INTERVAL_MINUTES
+                        )
+                    ),
+                ): vol.All(vol.Coerce(int), vol.Range(min=5, max=120)),
+            }
+        )
+
+        return self.async_show_form(step_id="init", data_schema=schema, errors=errors)

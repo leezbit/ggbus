@@ -84,7 +84,10 @@ async def async_remove_config_entry_device(
 
     hass.config_entries.async_update_entry(
         entry,
-        options={CONF_SELECTED_ROUTES: updated},
+        options={
+            **entry.options,
+            CONF_SELECTED_ROUTES: updated,
+        },
     )
     await hass.config_entries.async_reload(entry.entry_id)
     return True

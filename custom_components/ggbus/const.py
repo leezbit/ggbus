@@ -10,8 +10,11 @@ CONF_STATION_CODE = "station_code"
 CONF_STATION_ID = "station_id"
 CONF_STATION_NAME = "station_name"
 CONF_SELECTED_ROUTES = "selected_routes"
+CONF_SCAN_INTERVAL_SECONDS = "scan_interval_seconds"
+CONF_REDUCED_INTERVAL_MINUTES = "reduced_interval_minutes"
 
 DEFAULT_SCAN_INTERVAL_SECONDS = 90
+DEFAULT_REDUCED_INTERVAL_MINUTES = 20
 
 ATTR_ROUTE_ID = "route_id"
 ATTR_ROUTE_NAME = "route_name"

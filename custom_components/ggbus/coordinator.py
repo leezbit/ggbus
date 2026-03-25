@@ -20,14 +20,15 @@ from .api import (
 )
 from .const import (
     CONF_API_KEY,
+    CONF_REDUCED_INTERVAL_MINUTES,
+    CONF_SCAN_INTERVAL_SECONDS,
     CONF_STATION_ID,
+    DEFAULT_REDUCED_INTERVAL_MINUTES,
     DEFAULT_SCAN_INTERVAL_SECONDS,
     DOMAIN,
 )
 
 _LOGGER = logging.getLogger(__name__)
-
-NIGHT_REDUCED_INTERVAL = timedelta(minutes=20)
 
 class GGBusCoordinator(DataUpdateCoordinator[dict[str, Arrival]]):
     """Coordinate station arrivals for all selected buses."""
@@ -37,6 +38,10 @@ class GGBusCoordinator(DataUpdateCoordinator[dict[str, Arrival]]):
         api_key = entry.data[CONF_API_KEY]
         self.station_id = entry.data[CONF_STATION_ID]
         self.api = GGBusApi(async_get_clientsession(hass), api_key)
+        scan_seconds = int(entry.options.get(CONF_SCAN_INTERVAL_SECONDS, DEFAULT_SCAN_INTERVAL_SECONDS))
+        reduced_minutes = int(entry.options.get(CONF_REDUCED_INTERVAL_MINUTES, DEFAULT_REDUCED_INTERVAL_MINUTES))
+        self._default_interval = timedelta(seconds=max(30, scan_seconds))
+        self._reduced_interval = timedelta(minutes=max(5, reduced_minutes))
 
         self.last_api_status: str = "unknown"
         self.last_api_error: str | None = None
@@ -46,7 +51,7 @@ class GGBusCoordinator(DataUpdateCoordinator[dict[str, Arrival]]):
             hass,
             _LOGGER,
             name=f"{DOMAIN}_{entry.entry_id}",
-            update_interval=timedelta(seconds=DEFAULT_SCAN_INTERVAL_SECONDS),
+            update_interval=self._default_interval,
         )
 
     async def _async_update_data(self) -> dict[str, Arrival]:
@@ -64,13 +69,13 @@ class GGBusCoordinator(DataUpdateCoordinator[dict[str, Arrival]]):
         except GGBusQuotaError as err:
             self.last_api_status = "quota_exceeded"
             self.last_api_error = str(err)
-            self.update_interval = NIGHT_REDUCED_INTERVAL
+            self.update_interval = self._reduced_interval
             raise UpdateFailed(str(err)) from err
         except GGBusApiError as err:
             self.last_api_error = str(err)
             if _is_quota_error(str(err)):
                 self.last_api_status = "quota_exceeded"
-                self.update_interval = NIGHT_REDUCED_INTERVAL
+                self.update_interval = self._reduced_interval
             else:
                 self.last_api_status = "api_error"
             raise UpdateFailed(str(err)) from err
@@ -81,10 +86,10 @@ class GGBusCoordinator(DataUpdateCoordinator[dict[str, Arrival]]):
 
     def _adjust_update_interval(self, arrivals: dict[str, Arrival]) -> None:
         if arrivals and all(run_status_text(arrival.flag) == "미운행" for arrival in arrivals.values()):
-            self.update_interval = NIGHT_REDUCED_INTERVAL
+            self.update_interval = self._reduced_interval
             return
 
-        self.update_interval = timedelta(seconds=DEFAULT_SCAN_INTERVAL_SECONDS)
+        self.update_interval = self._default_interval
 
 def _is_quota_error(message: str) -> bool:
     normalized = message.upper()
