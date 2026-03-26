@@ -63,7 +63,7 @@ class GGBusCoordinator(DataUpdateCoordinator[dict[str, Arrival]]):
             self.last_api_error = None
             self.last_success_at = now_utc
             self._update_no_predict_tracking(arrivals, now_utc)
-            self._adjust_update_interval(arrivals)
+            self.update_interval = self._default_interval
             return arrivals
         except GGBusAuthError as err:
             self.last_api_status = "auth_error"
@@ -86,9 +86,6 @@ class GGBusCoordinator(DataUpdateCoordinator[dict[str, Arrival]]):
             self.last_api_status = "unknown_error"
             self.last_api_error = str(err)
             raise ConfigEntryError(str(err)) from err
-
-    def _adjust_update_interval(self, _arrivals: dict[str, Arrival]) -> None:
-        self.update_interval = self._default_interval
 
     def is_inferred_stopped(self, route_id: str, *, now_utc: datetime | None = None) -> bool:
         """Infer non-running state for late-night PASS/WAIT with no ETA."""
