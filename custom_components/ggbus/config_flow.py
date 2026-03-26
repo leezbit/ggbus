@@ -25,13 +25,11 @@ from homeassistant.helpers.selector import (
 from .api import GGBusApi, GGBusApiError, GGBusAuthError, GGBusQuotaError, GGBusStationNotFoundError
 from .const import (
     CONF_API_KEY,
-    CONF_REDUCED_INTERVAL_MINUTES,
     CONF_SCAN_INTERVAL_SECONDS,
     CONF_SELECTED_ROUTES,
     CONF_STATION_CODE,
     CONF_STATION_ID,
     CONF_STATION_NAME,
-    DEFAULT_REDUCED_INTERVAL_MINUTES,
     DEFAULT_SCAN_INTERVAL_SECONDS,
     DOMAIN,
 )
@@ -46,16 +44,6 @@ SCAN_INTERVAL_SELECTOR = NumberSelector(
         mode=NumberSelectorMode.BOX,
     )
 )
-
-REDUCED_INTERVAL_SELECTOR = NumberSelector(
-    NumberSelectorConfig(
-        min=5,
-        max=120,
-        step=1,
-        mode=NumberSelectorMode.BOX,
-    )
-)
-
 
 class GGBusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for GGBus."""
@@ -138,7 +126,6 @@ class GGBusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             selected_routes: list[str] = user_input[CONF_SELECTED_ROUTES]
             scan_interval_seconds = int(user_input[CONF_SCAN_INTERVAL_SECONDS])
-            reduced_interval_minutes = int(user_input[CONF_REDUCED_INTERVAL_MINUTES])
             if not selected_routes:
                 errors["base"] = "no_route_selected"
             else:
@@ -153,7 +140,6 @@ class GGBusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     options={
                         CONF_SELECTED_ROUTES: selected_routes,
                         CONF_SCAN_INTERVAL_SECONDS: scan_interval_seconds,
-                        CONF_REDUCED_INTERVAL_MINUTES: reduced_interval_minutes,
                     },
                 )
 
@@ -174,10 +160,6 @@ class GGBusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_SCAN_INTERVAL_SECONDS,
                     default=DEFAULT_SCAN_INTERVAL_SECONDS,
                 ): SCAN_INTERVAL_SELECTOR,
-                vol.Required(
-                    CONF_REDUCED_INTERVAL_MINUTES,
-                    default=DEFAULT_REDUCED_INTERVAL_MINUTES,
-                ): REDUCED_INTERVAL_SELECTOR,
             }
         )
 
@@ -247,7 +229,6 @@ class GGBusOptionsFlow(config_entries.OptionsFlow):
                     data={
                         CONF_SELECTED_ROUTES: selected_routes,
                         CONF_SCAN_INTERVAL_SECONDS: int(user_input[CONF_SCAN_INTERVAL_SECONDS]),
-                        CONF_REDUCED_INTERVAL_MINUTES: int(user_input[CONF_REDUCED_INTERVAL_MINUTES]),
                     },
                 )
 
@@ -277,14 +258,6 @@ class GGBusOptionsFlow(config_entries.OptionsFlow):
                         self._entry.options.get(CONF_SCAN_INTERVAL_SECONDS, DEFAULT_SCAN_INTERVAL_SECONDS)
                     ),
                 ): SCAN_INTERVAL_SELECTOR,
-                vol.Required(
-                    CONF_REDUCED_INTERVAL_MINUTES,
-                    default=int(
-                        self._entry.options.get(
-                            CONF_REDUCED_INTERVAL_MINUTES, DEFAULT_REDUCED_INTERVAL_MINUTES
-                        )
-                    ),
-                ): REDUCED_INTERVAL_SELECTOR,
             }
         )
 

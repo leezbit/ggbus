@@ -1,121 +1,37 @@
 # GGBus (경기도 버스 도착정보) Home Assistant 통합구성요소
 
-[![HACS Integration](https://img.shields.io/badge/HACS-Integration-blue.svg)](https://hacs.xyz)
-[![license](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
+경기도 버스도착정보 API와 정류소 조회 API(모두 data.go.kr 공공 API)를 사용해 **정류장 단위로 버스 도착정보를 90초 간격으로 갱신**하는 HACS 커스텀 통합입니다.
 
-> Portions of this integration were generated with the help of ChatGPT/Codex (OpenAI).
+## 기능
 
-경기도 버스 도착정보 Open API (data.go.kr)를 기반으로,
-**정류장 단위 버스 도착 정보를 Home Assistant에서 확인할 수 있는 HACS 커스텀 통합입니다.**
+- HACS로 설치 가능한 커스텀 통합
+- 초기 등록 시:
+  - 공공데이터포털 API 서비스키 입력
+  - 정류장 번호(5자리) 입력
+  - 해당 정류장의 버스 노선 목록 조회 후 선택
+- 등록 후:
+  - 정류장 장치(device) 아래에 버스 노선별 하위 기기(device)를 만들고, 각 버스 기기마다 항목별 엔티티 생성(도착예정/남은정류장/운행상태/저상여부 sensor 제공)
+  - 버스 하위 기기에서 "기기 제거"를 눌러 해당 노선만 삭제 가능
+- API 호출 제한(일 1,000회)을 고려해 **정류장당 기본 1회/90초** 폴링 (설정에서 초 단위로 조정 가능)
+- 정류장 기기에 `API 상태` 센서를 추가해 최근 오류/성공 시각 확인 가능
+- 저상버스/도착정보 표시는 data.go.kr 원본 응답 기준으로 표시됨 (다른 앱과 표시 시점/기준이 다를 수 있음)
 
----
+## 설치
 
-## ✨ 주요 기능
+1. 이 저장소를 본인 GitHub에 푸시
+2. HACS > Integrations > 메뉴 > Custom repositories
+3. Repository URL 입력 후 Category는 `Integration`
+4. `GGBus Home Assistant Integration` 설치
+5. Home Assistant 재시작
 
-* HACS를 통한 간편 설치
-* 정류장 번호(5자리) 기반 버스 도착정보 조회
-* 노선별 센서 자동 생성
-* 정류장 단위 디바이스 + 노선별 하위 디바이스 구조
-* 90초 간격 자동 갱신 (전 노선 미운행 시 20분 간격)
-* API 상태 센서 제공 (최근 성공/오류 시각)
-* 저상버스 여부 및 운행 상태 표시
+## 사용
 
----
+1. 설정 > 기기 및 서비스 > 통합 추가
+2. `Gyeonggi Bus Stop Arrivals` 선택
+3. API 서비스키 + 정류장번호(5자리) 입력
+4. 노선 목록에서 표시할 버스 선택
 
-## 🧩 제공 엔티티
+## API
 
-각 버스 노선별로 다음 센서가 생성됩니다:
-
-* 도착 예정 시간
-* 남은 정류장 수
-* 운행 상태 (운행 중 / 운행 종료)
-* 저상버스 여부
-
----
-
-## 📦 설치 방법
-
-### 1. HACS Custom Repository 등록
-
-1. HACS → Integrations
-2. 우측 상단 메뉴 (⋮) → **Custom repositories**
-3. 아래 정보 입력:
-
-* Repository URL: `https://github.com/<your-username>/<repo-name>`
-* Category: `Integration`
-
-4. 저장 후 목록에서 **GGBus** 검색 및 설치
-
----
-
-### 2. Home Assistant 재시작
-
-설치 후 반드시 Home Assistant를 재시작하세요.
-
----
-
-## ⚙️ 사용 방법
-
-1. 설정 → **기기 및 서비스**
-2. **통합 추가**
-3. `Gyeonggi Bus Stop Arrivals` 선택
-4. 다음 정보 입력:
-
-* 공공데이터포털 API 서비스키
-* 정류장 번호 (5자리)
-
-5. 조회된 노선 목록에서 원하는 버스 선택
-
----
-
-## 🔧 노선 추가 / 삭제
-
-* 이미 등록된 정류장은 **서비스 추가로 다시 등록할 수 없습니다**
-* 버스 노선 추가/삭제는:
-
-👉 **통합 → 해당 정류장 → 옵션(톱니바퀴)** 에서 변경하세요
-
----
-
-## ⏱️ 업데이트 주기
-
-* 기본: **90초**
-* 전 노선 미운행 시: **20분**
-
-(API 호출 제한을 고려한 설정)
-
----
-
-## 🌐 사용 API
-
-* [경기도 버스도착정보 조회](https://www.data.go.kr/data/15080346/openapi.do)
-* [경기도 정류소 조회](https://www.data.go.kr/data/15080666/openapi.do)
-
----
-
-## ⚠️ 주의사항
-
-* API 응답 지연 또는 오류로 인해 실제 도착 정보와 차이가 발생할 수 있습니다
-* 다른 앱(카카오버스, 네이버지도 등)과 표시 기준이 다를 수 있습니다
-* 공공 API 특성상 서비스 안정성이 보장되지 않습니다
-
----
-
-## ❗ Disclaimer
-
-This integration is **not affiliated with or endorsed by Gyeonggi-do or data.go.kr**.
-
-All data is provided by public APIs, and accuracy or availability is not guaranteed.
-Use at your own risk.
-
----
-
-## 📜 License
-
-This project is licensed under the MIT License.
-
----
-
-## 🙌 기여
-
-이슈 및 PR은 언제든 환영합니다!
+- 경기도_버스도착정보 조회: <https://www.data.go.kr/data/15080346/openapi.do>
+- 경기도_정류소 조회: <https://www.data.go.kr/data/15080666/openapi.do>
