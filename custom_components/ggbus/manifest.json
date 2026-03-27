@@ -2,7 +2,7 @@
   "domain": "ggbus",
   "name": "Gyeonggi Bus Stop Arrivals",
   "codeowners": [
-    "@codex"
+    "@leezbit"
   ],
   "config_flow": true,
   "documentation": "https://www.data.go.kr/data/15080346/openapi.do",
