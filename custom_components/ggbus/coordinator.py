@@ -70,31 +70,31 @@ class GGBusCoordinator(DataUpdateCoordinator[dict[str, Arrival]]):
         except GGBusAuthError as err:
             self.last_api_status = "auth_error"
             self.last_api_error = str(err)
-            self._track_error(err, "auth_error")
+            self._track_error("auth_error")
             raise ConfigEntryAuthFailed from err
         except GGBusQuotaError as err:
             self.last_api_status = "quota_exceeded"
             self.last_api_error = str(err)
-            self._track_error(err, "quota_exceeded")
+            self._track_error("quota_exceeded")
             self.update_interval = self._default_interval
             raise UpdateFailed(str(err)) from err
         except GGBusApiError as err:
             self.last_api_error = str(err)
             if _is_quota_error(str(err)):
                 self.last_api_status = "quota_exceeded"
-                self._track_error(err, "quota_exceeded")
+                self._track_error("quota_exceeded")
                 self.update_interval = self._default_interval
             else:
                 self.last_api_status = "api_error"
-                self._track_error(err, "api_error")
+                self._track_error("api_error")
             raise UpdateFailed(str(err)) from err
         except Exception as err:  # pragma: no cover - defensive
             self.last_api_status = "unknown_error"
             self.last_api_error = str(err)
-            self._track_error(err, "unknown_error")
+            self._track_error("unknown_error")
             raise ConfigEntryError(str(err)) from err
 
-    def _track_error(self, err: Exception, error_type: str) -> None:
+    def _track_error(self, error_type: str) -> None:
         now_utc = datetime.now(timezone.utc)
         self.last_error_at = now_utc
         self.last_error_type = error_type
