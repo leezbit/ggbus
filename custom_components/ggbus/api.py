@@ -23,9 +23,6 @@ ARRIVAL_ENDPOINTS = (
     "https://apis.data.go.kr/6410000/busarrivalservice/v2/getBusArrivalListv2",
 )
 
-RUNNING_STATUS_VALUES = {"RUN", "PASS", "1", "Y", "ON", "정상", "운행"}
-NOT_RUNNING_STATUS_VALUES = {"STOP", "0", "N", "OFF", "미운행", "종료"}
-
 
 class GGBusApiError(Exception):
     """Base API error."""
@@ -63,8 +60,8 @@ class Arrival:
     location_no_2: int | None
     predict_time_2: int | None
     flag: str | None
-    low_plate_1: bool | None
-    low_plate_2: bool | None
+    low_plate_1: str | None
+    low_plate_2: str | None
     plate_no_1: str | None
     plate_no_2: str | None
 
@@ -157,8 +154,8 @@ class GGBusApi:
                 location_no_2=_to_int(item.get("locationNo2")),
                 predict_time_2=_to_int(item.get("predictTime2")),
                 flag=_to_optional_str(item.get("flag")),
-                low_plate_1=_to_low_floor(_first_present(item, "lowPlate1", "lowplate1", "low_plate_1")),
-                low_plate_2=_to_low_floor(_first_present(item, "lowPlate2", "lowplate2", "low_plate_2")),
+                low_plate_1=_to_low_plate_code(_first_present(item, "lowPlate1", "lowplate1", "low_plate_1")),
+                low_plate_2=_to_low_plate_code(_first_present(item, "lowPlate2", "lowplate2", "low_plate_2")),
                 plate_no_1=_to_optional_str(item.get("plateNo1")),
                 plate_no_2=_to_optional_str(item.get("plateNo2")),
             )
@@ -297,24 +294,19 @@ def _to_int(value: Any) -> int | None:
         return None
 
 
-def _to_low_floor(value: Any) -> bool | None:
+def _to_low_plate_code(value: Any) -> str | None:
     if value in (None, ""):
         return None
-    if isinstance(value, bool):
-        return value
 
     normalized = str(value).strip().upper()
-    # GBIS 명세: lowPlate = 1(저상), 0/2/5/6/7(비저상 특수차량 포함)
-    if normalized == "1":
-        return True
-    if normalized in {"0", "2", "5", "6", "7"}:
-        return False
+    if normalized in {"0", "1", "2", "5", "6", "7"}:
+        return normalized
 
     # 일부 환경에서 bool 계열 문자열이 섞여 들어오는 경우 보정
     if normalized in {"TRUE", "Y", "YES", "ON"}:
-        return True
+        return "1"
     if normalized in {"FALSE", "N", "NO", "OFF"}:
-        return False
+        return "0"
     return None
 
 
@@ -335,17 +327,3 @@ def _first_present(payload: dict[str, Any], *keys: str) -> Any:
             return payload[key]
     return None
 
-
-def run_status_text(flag: str | None) -> str:
-    """Normalize API run-status flag to Korean UI text."""
-    if flag is None or str(flag).strip() == "":
-        return "정보없음"
-
-    raw = str(flag).strip()
-    normalized = raw.upper()
-
-    if normalized in RUNNING_STATUS_VALUES or raw in RUNNING_STATUS_VALUES:
-        return "운행 중"
-    if normalized in NOT_RUNNING_STATUS_VALUES or raw in NOT_RUNNING_STATUS_VALUES:
-        return "미운행"
-    return raw
