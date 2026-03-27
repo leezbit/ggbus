@@ -40,6 +40,7 @@ class GGBusCoordinator(DataUpdateCoordinator[dict[str, Arrival]]):
         self.last_api_status: str = "unknown"
         self.last_api_error: str | None = None
         self.last_success_at: datetime | None = None
+        self.consecutive_error_count: int = 0
 
         super().__init__(
             hass,
@@ -55,19 +56,23 @@ class GGBusCoordinator(DataUpdateCoordinator[dict[str, Arrival]]):
             self.last_api_status = "ok"
             self.last_api_error = None
             self.last_success_at = now_utc
+            self.consecutive_error_count = 0
             self.update_interval = self._default_interval
             return arrivals
         except GGBusAuthError as err:
             self.last_api_status = "auth_error"
             self.last_api_error = str(err)
+            self.consecutive_error_count += 1
             raise ConfigEntryAuthFailed from err
         except GGBusQuotaError as err:
             self.last_api_status = "quota_exceeded"
             self.last_api_error = str(err)
+            self.consecutive_error_count += 1
             self.update_interval = self._default_interval
             raise UpdateFailed(str(err)) from err
         except GGBusApiError as err:
             self.last_api_error = str(err)
+            self.consecutive_error_count += 1
             if _is_quota_error(str(err)):
                 self.last_api_status = "quota_exceeded"
                 self.update_interval = self._default_interval
@@ -77,6 +82,7 @@ class GGBusCoordinator(DataUpdateCoordinator[dict[str, Arrival]]):
         except Exception as err:  # pragma: no cover - defensive
             self.last_api_status = "unknown_error"
             self.last_api_error = str(err)
+            self.consecutive_error_count += 1
             raise ConfigEntryError(str(err)) from err
 
 def _is_quota_error(message: str) -> bool:

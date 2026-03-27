@@ -166,6 +166,7 @@ class GGBusApiStatusSensor(CoordinatorEntity[GGBusCoordinator], SensorEntity):
             "last_api_error": self.coordinator.last_api_error,
             "last_success_at": success_at.isoformat() if success_at else None,
             "minutes_since_last_success": minutes_since_last_success,
+            "consecutive_error_count": self.coordinator.consecutive_error_count,
             "current_poll_seconds": int(self.coordinator.update_interval.total_seconds()),
         }
 
