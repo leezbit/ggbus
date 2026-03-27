@@ -219,6 +219,10 @@ class GGBusOptionsFlow(config_entries.OptionsFlow):
         current_selected_raw = self._entry.options.get(CONF_SELECTED_ROUTES, [])
         current_selected = current_selected_raw if isinstance(current_selected_raw, list) else []
 
+        if not route_options:
+            # API 일시 장애 시에도 현재 선택값 기반으로 옵션 저장(주기 변경 등)은 가능하게 유지.
+            route_options = {route_id: route_id for route_id in current_selected}
+
         if user_input is not None:
             selected_routes: list[str] = user_input[CONF_SELECTED_ROUTES]
             if not selected_routes:

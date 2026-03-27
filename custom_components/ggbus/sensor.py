@@ -14,8 +14,9 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 
-from .api import Arrival, run_status_text
+from .api import Arrival
 from .const import (
     CONF_SELECTED_ROUTES,
     CONF_STATION_ID,
@@ -33,6 +34,7 @@ class GGBusMetricDescription:
     name_suffix: str
     icon: str
     value_fn: Callable[[Arrival], Any]
+    code_fn: Callable[[Arrival], Any] | None = None
     unit: str | None = None
 
 
@@ -56,6 +58,7 @@ METRICS: tuple[GGBusMetricDescription, ...] = (
         name_suffix="1번째 저상버스",
         icon="mdi:wheelchair-accessibility",
         value_fn=lambda arrival: _low_floor_text(arrival.low_plate_1),
+        code_fn=lambda arrival: arrival.low_plate_1,
     ),
     GGBusMetricDescription(
         key="arrival_2",
@@ -76,6 +79,7 @@ METRICS: tuple[GGBusMetricDescription, ...] = (
         name_suffix="2번째 저상버스",
         icon="mdi:wheelchair-accessibility",
         value_fn=lambda arrival: _low_floor_text(arrival.low_plate_2),
+        code_fn=lambda arrival: arrival.low_plate_2,
     ),
 )
 
@@ -153,10 +157,15 @@ class GGBusApiStatusSensor(CoordinatorEntity[GGBusCoordinator], SensorEntity):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         success_at = self.coordinator.last_success_at
+        now_utc = dt_util.utcnow()
+        minutes_since_last_success: int | None = None
+        if success_at is not None:
+            minutes_since_last_success = int((now_utc - success_at).total_seconds() // 60)
         return {
             "raw_api_status": self.coordinator.last_api_status,
             "last_api_error": self.coordinator.last_api_error,
             "last_success_at": success_at.isoformat() if success_at else None,
+            "minutes_since_last_success": minutes_since_last_success,
             "current_poll_seconds": int(self.coordinator.update_interval.total_seconds()),
         }
 
@@ -211,12 +220,19 @@ class GGBusRouteMetricSensor(CoordinatorEntity[GGBusCoordinator], SensorEntity):
 
         value = self._metric.value_fn(arrival)
         if self._metric.key in {"arrival_1", "arrival_2"} and value is None:
-            if run_status_text(arrival.flag) == "미운행" or self.coordinator.is_inferred_stopped(self._route_id):
-                return "운행종료"
             return "대기 중"
         if self._metric.key in {"location_1", "location_2"} and value is None:
             return "정보없음"
         return value
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        arrival = self._arrival
+        if arrival is None:
+            return None
+        if self._metric.code_fn is None:
+            return None
+        return {"raw_low_plate_code": self._metric.code_fn(arrival)}
 
     @property
     def native_unit_of_measurement(self) -> str | None:
