@@ -272,9 +272,7 @@ def _route_label(route_name: str) -> str:
     cleaned = str(route_name).strip()
     if not cleaned:
         return "노선"
-    if cleaned.endswith("번"):
-        return cleaned
-    return f"{cleaned}번"
+    return cleaned
 
 
 def _low_floor_text(code: str | None) -> str:
@@ -292,6 +290,7 @@ def _low_floor_text(code: str | None) -> str:
 def _api_status_text(status: str | None) -> str:
     mapping = {
         "ok": "정상",
+        "unknown": "알 수 없음",
         "stale": "데이터 지연",
         "auth_error": "인증 실패",
         "quota_exceeded": "할당량 초과",
