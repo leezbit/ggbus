@@ -77,12 +77,6 @@ METRICS: tuple[GGBusMetricDescription, ...] = (
         icon="mdi:wheelchair-accessibility",
         value_fn=lambda arrival: _low_floor_text(arrival.low_plate_2),
     ),
-    GGBusMetricDescription(
-        key="flag",
-        name_suffix="운행상태",
-        icon="mdi:bus-alert",
-        value_fn=lambda arrival: run_status_text(arrival.flag),
-    ),
 )
 
 
@@ -215,13 +209,9 @@ class GGBusRouteMetricSensor(CoordinatorEntity[GGBusCoordinator], SensorEntity):
         if arrival is None:
             return None
 
-        inferred_stopped = self.coordinator.is_inferred_stopped(self._route_id)
-        if self._metric.key == "flag" and inferred_stopped:
-            return "운행종료(추정)"
-
         value = self._metric.value_fn(arrival)
         if self._metric.key in {"arrival_1", "arrival_2"} and value is None:
-            if run_status_text(arrival.flag) == "미운행" or inferred_stopped:
+            if run_status_text(arrival.flag) == "미운행" or self.coordinator.is_inferred_stopped(self._route_id):
                 return "운행종료"
             return "대기 중"
         if self._metric.key in {"location_1", "location_2"} and value is None:
@@ -255,11 +245,16 @@ def _route_label(route_name: str) -> str:
     return f"{cleaned}번"
 
 
-def _low_floor_text(value: bool | None) -> str:
-    # lowPlate 정보가 없으면 추정하지 않고 정보없음으로 표시한다.
-    if value is None:
-        return "정보없음"
-    return "저상" if value else "일반"
+def _low_floor_text(code: str | None) -> str:
+    mapping = {
+        "0": "일반",
+        "1": "저상",
+        "2": "2층",
+        "5": "전세",
+        "6": "예약",
+        "7": "트롤리",
+    }
+    return mapping.get(code, "정보없음")
 
 
 def _api_status_text(status: str | None) -> str:
