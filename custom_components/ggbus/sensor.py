@@ -152,22 +152,37 @@ class GGBusApiStatusSensor(CoordinatorEntity[GGBusCoordinator], SensorEntity):
 
     @property
     def native_value(self) -> str:
-        return _api_status_text(self.coordinator.last_api_status)
+        return _api_status_text(_effective_api_status(self.coordinator))
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
+        status_code = _effective_api_status(self.coordinator)
         success_at = self.coordinator.last_success_at
+        attempt_at = self.coordinator.last_attempt_at
+        error_at = self.coordinator.last_error_at
         now_utc = dt_util.utcnow()
-        minutes_since_last_success: int | None = None
+        seconds_since_last_success: int | None = None
+        seconds_since_last_attempt: int | None = None
         if success_at is not None:
-            minutes_since_last_success = int((now_utc - success_at).total_seconds() // 60)
+            seconds_since_last_success = int((now_utc - success_at).total_seconds())
+        if attempt_at is not None:
+            seconds_since_last_attempt = int((now_utc - attempt_at).total_seconds())
         return {
+            "status_code": status_code,
             "raw_api_status": self.coordinator.last_api_status,
             "last_api_error": self.coordinator.last_api_error,
             "last_success_at": success_at.isoformat() if success_at else None,
-            "minutes_since_last_success": minutes_since_last_success,
+            "last_attempt_at": attempt_at.isoformat() if attempt_at else None,
+            "last_error_at": error_at.isoformat() if error_at else None,
+            "seconds_since_last_success": seconds_since_last_success,
+            "seconds_since_last_attempt": seconds_since_last_attempt,
             "consecutive_error_count": self.coordinator.consecutive_error_count,
+            "total_success_count": self.coordinator.total_success_count,
+            "total_error_count": self.coordinator.total_error_count,
+            "last_error_type": self.coordinator.last_error_type,
+            "is_stale": status_code == "stale",
             "current_poll_seconds": int(self.coordinator.update_interval.total_seconds()),
+            "recommended_action": _recommended_action(status_code),
         }
 
     @property
@@ -277,11 +292,44 @@ def _low_floor_text(code: str | None) -> str:
 def _api_status_text(status: str | None) -> str:
     mapping = {
         "ok": "정상",
-        "auth_error": "인증오류",
-        "quota_exceeded": "할당초과",
-        "api_error": "API오류",
-        "unknown_error": "오류",
+        "stale": "데이터 지연",
+        "auth_error": "인증 실패",
+        "quota_exceeded": "할당량 초과",
+        "api_error": "API 응답 오류",
+        "unknown_error": "알 수 없는 오류",
     }
     if not status:
         return "알 수 없음"
     return mapping.get(status, status)
+
+
+def _effective_api_status(coordinator: GGBusCoordinator) -> str:
+    status = coordinator.last_api_status
+    if status != "ok":
+        return status
+
+    success_at = coordinator.last_success_at
+    if success_at is None:
+        return "unknown"
+
+    stale_after_seconds = max(
+        int(coordinator.update_interval.total_seconds()) * 3,
+        600,
+    )
+    age_seconds = (dt_util.utcnow() - success_at).total_seconds()
+    if age_seconds >= stale_after_seconds:
+        return "stale"
+    return "ok"
+
+
+def _recommended_action(status_code: str) -> str:
+    recommendations = {
+        "ok": "정상 수집 중입니다.",
+        "stale": "최근 데이터가 지연되었습니다. 잠시 후 다시 확인하세요.",
+        "auth_error": "API 서비스키 유효기간/권한을 확인하세요.",
+        "quota_exceeded": "일일 호출량 초과 상태입니다. 익일에 재시도하세요.",
+        "api_error": "공공 API 응답 상태를 확인하고 잠시 후 재시도하세요.",
+        "unknown_error": "통합을 재시작하고 로그를 확인하세요.",
+        "unknown": "첫 수집 대기 중입니다.",
+    }
+    return recommendations.get(status_code, "로그를 확인하세요.")
