@@ -317,8 +317,16 @@ def _effective_api_status(coordinator: GGBusCoordinator) -> str:
     if success_at is None:
         return "unknown"
 
+    poll_seconds = (
+        int(coordinator.update_interval.total_seconds())
+        if coordinator.update_interval is not None
+        else 0
+    )
+    if poll_seconds <= 0:
+        poll_seconds = max(10, int(getattr(coordinator, "_trigger_interval_seconds", 30)))
+
     stale_after_seconds = max(
-        int(coordinator.update_interval.total_seconds()) * 3,
+        poll_seconds * 3,
         600,
     )
     age_seconds = (dt_util.utcnow() - success_at).total_seconds()
