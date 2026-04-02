@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 import logging
 
@@ -20,7 +21,11 @@ from .const import (
     CONF_API_KEY,
     CONF_SCAN_INTERVAL_SECONDS,
     CONF_STATION_ID,
+    CONF_TRIGGER_REFRESH_DURATION_MINUTES,
+    CONF_TRIGGER_REFRESH_INTERVAL_SECONDS,
     DEFAULT_SCAN_INTERVAL_SECONDS,
+    DEFAULT_TRIGGER_REFRESH_DURATION_MINUTES,
+    DEFAULT_TRIGGER_REFRESH_INTERVAL_SECONDS,
     DOMAIN,
 )
 
@@ -35,7 +40,21 @@ class GGBusCoordinator(DataUpdateCoordinator[dict[str, Arrival]]):
         self.station_id = entry.data[CONF_STATION_ID]
         self.api = GGBusApi(async_get_clientsession(hass), api_key)
         scan_seconds = int(entry.options.get(CONF_SCAN_INTERVAL_SECONDS, DEFAULT_SCAN_INTERVAL_SECONDS))
-        self._default_interval = timedelta(seconds=max(30, scan_seconds))
+        self._default_interval = None if scan_seconds <= 0 else timedelta(seconds=max(30, scan_seconds))
+        self._trigger_interval_seconds = int(
+            entry.options.get(
+                CONF_TRIGGER_REFRESH_INTERVAL_SECONDS,
+                DEFAULT_TRIGGER_REFRESH_INTERVAL_SECONDS,
+            )
+        )
+        self._trigger_duration_minutes = int(
+            entry.options.get(
+                CONF_TRIGGER_REFRESH_DURATION_MINUTES,
+                DEFAULT_TRIGGER_REFRESH_DURATION_MINUTES,
+            )
+        )
+        self._burst_task: asyncio.Task | None = None
+        self.is_trigger_refresh_active: bool = False
 
         self.last_api_status: str = "unknown"
         self.last_api_error: str | None = None
@@ -100,6 +119,37 @@ class GGBusCoordinator(DataUpdateCoordinator[dict[str, Arrival]]):
         self.last_error_type = error_type
         self.consecutive_error_count += 1
         self.total_error_count += 1
+
+    async def async_trigger_refresh_window(self) -> None:
+        """Trigger one refresh or a temporary refresh window."""
+        self._cancel_burst_task()
+
+        if self._trigger_duration_minutes <= 0:
+            await self.async_request_refresh()
+            return
+
+        self.is_trigger_refresh_active = True
+
+        async def _burst_loop() -> None:
+            end_at = datetime.now(timezone.utc) + timedelta(minutes=self._trigger_duration_minutes)
+            try:
+                while datetime.now(timezone.utc) <= end_at:
+                    await self.async_request_refresh()
+                    await asyncio.sleep(max(1, self._trigger_interval_seconds))
+            finally:
+                self.is_trigger_refresh_active = False
+
+        self._burst_task = self.hass.async_create_task(_burst_loop())
+
+    def _cancel_burst_task(self) -> None:
+        if self._burst_task and not self._burst_task.done():
+            self._burst_task.cancel()
+        self._burst_task = None
+        self.is_trigger_refresh_active = False
+
+    async def async_shutdown(self) -> None:
+        """Cancel background tasks when unloading integration."""
+        self._cancel_burst_task()
 
 def _is_quota_error(message: str) -> bool:
     normalized = message.upper()
