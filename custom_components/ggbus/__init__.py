@@ -45,6 +45,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: GGBusConfigEntry) -> boo
 
 async def async_unload_entry(hass: HomeAssistant, entry: GGBusConfigEntry) -> bool:
     """Unload a config entry."""
+    if entry.runtime_data is not None:
+        await entry.runtime_data.async_shutdown()
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 
