@@ -167,6 +167,11 @@ class GGBusApiStatusSensor(CoordinatorEntity[GGBusCoordinator], SensorEntity):
             seconds_since_last_success = int((now_utc - success_at).total_seconds())
         if attempt_at is not None:
             seconds_since_last_attempt = int((now_utc - attempt_at).total_seconds())
+        poll_seconds = (
+            int(self.coordinator.update_interval.total_seconds())
+            if self.coordinator.update_interval is not None
+            else 0
+        )
         return {
             "status_code": status_code,
             "raw_api_status": self.coordinator.last_api_status,
@@ -181,7 +186,8 @@ class GGBusApiStatusSensor(CoordinatorEntity[GGBusCoordinator], SensorEntity):
             "total_error_count": self.coordinator.total_error_count,
             "last_error_type": self.coordinator.last_error_type,
             "is_stale": status_code == "stale",
-            "current_poll_seconds": int(self.coordinator.update_interval.total_seconds()),
+            "current_poll_seconds": poll_seconds,
+            "trigger_refresh_active": self.coordinator.is_trigger_refresh_active,
             "recommended_action": _recommended_action(status_code),
         }
 

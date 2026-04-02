@@ -30,7 +30,11 @@ from .const import (
     CONF_STATION_CODE,
     CONF_STATION_ID,
     CONF_STATION_NAME,
+    CONF_TRIGGER_REFRESH_DURATION_MINUTES,
+    CONF_TRIGGER_REFRESH_INTERVAL_SECONDS,
     DEFAULT_SCAN_INTERVAL_SECONDS,
+    DEFAULT_TRIGGER_REFRESH_DURATION_MINUTES,
+    DEFAULT_TRIGGER_REFRESH_INTERVAL_SECONDS,
     DOMAIN,
 )
 
@@ -38,9 +42,27 @@ _LOGGER = logging.getLogger(__name__)
 
 SCAN_INTERVAL_SELECTOR = NumberSelector(
     NumberSelectorConfig(
-        min=30,
+        min=0,
         max=600,
         step=10,
+        mode=NumberSelectorMode.BOX,
+    )
+)
+
+TRIGGER_REFRESH_INTERVAL_SELECTOR = NumberSelector(
+    NumberSelectorConfig(
+        min=10,
+        max=300,
+        step=5,
+        mode=NumberSelectorMode.BOX,
+    )
+)
+
+TRIGGER_REFRESH_DURATION_SELECTOR = NumberSelector(
+    NumberSelectorConfig(
+        min=0,
+        max=60,
+        step=1,
         mode=NumberSelectorMode.BOX,
     )
 )
@@ -126,6 +148,8 @@ class GGBusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             selected_routes: list[str] = user_input[CONF_SELECTED_ROUTES]
             scan_interval_seconds = int(user_input[CONF_SCAN_INTERVAL_SECONDS])
+            trigger_refresh_interval_seconds = int(user_input[CONF_TRIGGER_REFRESH_INTERVAL_SECONDS])
+            trigger_refresh_duration_minutes = int(user_input[CONF_TRIGGER_REFRESH_DURATION_MINUTES])
             if not selected_routes:
                 errors["base"] = "no_route_selected"
             else:
@@ -140,6 +164,8 @@ class GGBusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     options={
                         CONF_SELECTED_ROUTES: selected_routes,
                         CONF_SCAN_INTERVAL_SECONDS: scan_interval_seconds,
+                        CONF_TRIGGER_REFRESH_INTERVAL_SECONDS: trigger_refresh_interval_seconds,
+                        CONF_TRIGGER_REFRESH_DURATION_MINUTES: trigger_refresh_duration_minutes,
                     },
                 )
 
@@ -160,6 +186,14 @@ class GGBusConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_SCAN_INTERVAL_SECONDS,
                     default=DEFAULT_SCAN_INTERVAL_SECONDS,
                 ): SCAN_INTERVAL_SELECTOR,
+                vol.Required(
+                    CONF_TRIGGER_REFRESH_INTERVAL_SECONDS,
+                    default=DEFAULT_TRIGGER_REFRESH_INTERVAL_SECONDS,
+                ): TRIGGER_REFRESH_INTERVAL_SELECTOR,
+                vol.Required(
+                    CONF_TRIGGER_REFRESH_DURATION_MINUTES,
+                    default=DEFAULT_TRIGGER_REFRESH_DURATION_MINUTES,
+                ): TRIGGER_REFRESH_DURATION_SELECTOR,
             }
         )
 
@@ -233,6 +267,8 @@ class GGBusOptionsFlow(config_entries.OptionsFlow):
                     data={
                         CONF_SELECTED_ROUTES: selected_routes,
                         CONF_SCAN_INTERVAL_SECONDS: int(user_input[CONF_SCAN_INTERVAL_SECONDS]),
+                        CONF_TRIGGER_REFRESH_INTERVAL_SECONDS: int(user_input[CONF_TRIGGER_REFRESH_INTERVAL_SECONDS]),
+                        CONF_TRIGGER_REFRESH_DURATION_MINUTES: int(user_input[CONF_TRIGGER_REFRESH_DURATION_MINUTES]),
                     },
                 )
 
@@ -262,6 +298,24 @@ class GGBusOptionsFlow(config_entries.OptionsFlow):
                         self._entry.options.get(CONF_SCAN_INTERVAL_SECONDS, DEFAULT_SCAN_INTERVAL_SECONDS)
                     ),
                 ): SCAN_INTERVAL_SELECTOR,
+                vol.Required(
+                    CONF_TRIGGER_REFRESH_INTERVAL_SECONDS,
+                    default=int(
+                        self._entry.options.get(
+                            CONF_TRIGGER_REFRESH_INTERVAL_SECONDS,
+                            DEFAULT_TRIGGER_REFRESH_INTERVAL_SECONDS,
+                        )
+                    ),
+                ): TRIGGER_REFRESH_INTERVAL_SELECTOR,
+                vol.Required(
+                    CONF_TRIGGER_REFRESH_DURATION_MINUTES,
+                    default=int(
+                        self._entry.options.get(
+                            CONF_TRIGGER_REFRESH_DURATION_MINUTES,
+                            DEFAULT_TRIGGER_REFRESH_DURATION_MINUTES,
+                        )
+                    ),
+                ): TRIGGER_REFRESH_DURATION_SELECTOR,
             }
         )
 
